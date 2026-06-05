@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  receipt-printer:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PRINTER_HOST=${PRINTER_HOST:-printer}
+      - PRINTER_PORT=${PRINTER_PORT:-9100}
+    restart: unless-stopped
