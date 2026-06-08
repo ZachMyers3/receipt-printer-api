@@ -24,9 +24,14 @@ def format_and_print(
 
 
 def format_lines(lines: list[dict], host: str, port: int) -> int:
-    """Connect to the printer and process structured line objects."""
+    """Connect to the printer and process structured line objects.
+    Ensures printer profile has media width for alignment features.
+    """
     try:
         printer = Network(host, port=port)
+        # Ensure media width is set so center/right alignment works without warnings
+        if not printer._profile.get('media', {}).get('width', {}).get('pixel'):
+            printer._profile.setdefault('media', {})['width'] = {'pixel': 384}
         lines_printed = process_line_objects(lines, printer)
         printer.close()
     except (ConnectionError, TimeoutError) as exc:
