@@ -38,7 +38,7 @@ def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 10)
         printer = None
         try:
             printer = Network(host, port=port)
-            # Ensure profile has media.width.pixels set to suppress centering warnings
+            # Ensure profile has media.width.pixels (and .pixel) set to suppress centering warnings
             try:
                 profile_obj = getattr(printer, 'profile', None)
                 if profile_obj is not None and hasattr(profile_obj, 'profile_data'):
@@ -46,8 +46,11 @@ def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 10)
                     if isinstance(pd, dict):
                         media = pd.setdefault('media', {})
                         width = media.setdefault('width', {})
+                        # Set both known keys to 384 to ensure centering works
                         if width.get('pixels') in ("Unknown", None):
                             width['pixels'] = 384
+                        if width.get('pixel') in ("Unknown", None):
+                            width['pixel'] = 384
             except Exception:
                 pass
             lines_printed = process_line_objects(lines, printer)
