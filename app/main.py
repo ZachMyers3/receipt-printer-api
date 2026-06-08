@@ -76,6 +76,8 @@ def print_receipt(request: PrintRequest) -> dict[str, str | int]:
         try:
             count = format_lines(raw_lines, host=PRINTER_HOST, port=PRINTER_PORT)
         except RuntimeError as exc:
+            if "Invalid barcode:" in str(exc):
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return {"status": "sent", "lines": count}
 
@@ -92,6 +94,8 @@ def print_receipt(request: PrintRequest) -> dict[str, str | int]:
                 qr_data=request.qr_data,
             )
         except RuntimeError as exc:
+            if "Invalid barcode:" in str(exc):
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return {"status": "sent", "lines": count}
 

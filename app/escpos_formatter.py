@@ -1,4 +1,5 @@
 from escpos.printer import Network
+from escpos.exceptions import BarcodeCodeError
 
 RECEIPT_WIDTH = 32
 
@@ -158,17 +159,19 @@ def _handle_qr_line(line: dict, printer) -> None:
 
 
 def _handle_barcode_line(line: dict, printer) -> None:
-    pos = _BARCODE_POS.get(str(line.get("pos", "below")).lower(), "BELOW")
-    font = str(line.get("font", "a")).upper()
-
-    printer.barcode(
-        code=line["code"],
-        bc=line["bc"],
-        height=line.get("height", 100),
-        width=line.get("width", 2),
-        pos=pos,
-        font=font,
-    )
+    try:
+        pos = _BARCODE_POS.get(str(line.get("pos", "below")).lower(), "BELOW")
+        font = str(line.get("font", "a")).upper()
+        printer.barcode(
+            code=line["code"],
+            bc=line["bc"],
+            height=line.get("height", 100),
+            width=line.get("width", 2),
+            pos=pos,
+            font=font,
+        )
+    except BarcodeCodeError as exc:
+        raise RuntimeError(f"Invalid barcode: {exc}") from exc
 
 
 def _handle_pulse_line(line: dict, printer) -> None:
