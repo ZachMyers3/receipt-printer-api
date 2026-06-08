@@ -1,3 +1,7 @@
+import base64
+import io
+import urllib.request
+from PIL import Image
 import time
 from escpos.printer import Network
 from escpos.exceptions import BarcodeCodeError
@@ -87,6 +91,9 @@ def process_line_objects(lines: list[dict], printer) -> int:
             _handle_barcode_line(line, printer)
         elif line_type == "pulse":
             _handle_pulse_line(line, printer)
+        elif line_type == "image":
+            _handle_image_line(line, printer)
+            lines_printed += 1
 
     return lines_printed
 
@@ -116,6 +123,10 @@ def lines_to_text(lines: list[dict]) -> str:
         elif line_type == "pulse":
             pin = line.get("pin", 0)
             output.append(f"[DRAWER PULSE pin={pin}]")
+        elif line_type == "image":
+            w = line.get("width", "?")
+            h = line.get("height", "?")
+            output.append(f"[IMAGE: {w}x{h}]")
 
     return "\n".join(output)
 
@@ -212,6 +223,89 @@ def _handle_pulse_line(line: dict, printer) -> None:
     pin = line.get("pin", 0)
     drawer = getattr(printer, "pulse", getattr(printer, "cashdraw"))
     drawer(pin)
+
+
+def _handle_image_line(line: dict, printer) -> None:
+    """Render an image to the printer.
+    Supports URL or base64 data URL input. Converts to 1-bit, resizes, and prints.
+    """
+    data = line.get("data")
+    if not data:
+        raise RuntimeError("Image data missing")
+
+    try:
+        # Load image
+        if data.startswith("http://") or data.startswith("https://"):
+            with urllib.request.urlopen(data, timeout=10) as resp:
+                img_bytes = resp.read()
+            img = Image.open(io.BytesIO(img_bytes))
+        elif data.startswith("data:image/"):
+            # Data URL: format "data:image/png;base64,...."
+            header, b64_data = data.split(",", 1)
+            if ";base64" in header:
+                b64_data = header.split(";base64,")[1] if "," in header else b64_data
+            img_bytes = base64.b64decode(b64_data)
+            img = Image.open(io.BytesIO(img_bytes))
+        else:
+            raise RuntimeError("Unsupported image data format; must be URL or data:image/base64")
+
+        # Convert to 1-bit
+        dither = line.get("dither", False)
+        if dither:
+            img = img.convert("1", dither=Image.FLOYDSTEINBERG)
+        else:
+            img = img.convert("1")
+
+        # Determine target size
+        max_w = line.get("width")
+        max_h = line.get("height")
+        # Default width if not provided
+        if max_w is None and max_h is None:
+            max_w = 384
+        orig_w, orig_h = img.size
+        new_w, new_h = orig_w, orig_h
+
+        keep_aspect = line.get("keep_aspect", True)
+
+        if max_w is not None and max_h is not None:
+            if keep_aspect:
+                ratio = min(max_w / orig_w, max_h / orig_h)
+            else:
+                ratio_w = max_w / orig_w
+                ratio_h = max_h / orig_h
+                # Use the smaller to ensure within bounds? Actually we want exact fit; but if keep_aspect False, we'll force dimensions exactly
+                new_w = max_w
+                new_h = max_h
+                ratio = None
+        elif max_w is not None:
+            ratio = max_w / orig_w
+        elif max_h is not None:
+            ratio = max_h / orig_h
+        else:
+            ratio = 384 / orig_w
+
+        if ratio is not None:
+            new_w = int(orig_w * ratio)
+            new_h = int(orig_h * ratio)
+
+        # Ensure at least 1 pixel
+        new_w = max(1, new_w)
+        new_h = max(1, new_h)
+
+        if new_w != orig_w or new_h != orig_h:
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+
+        # Print image
+        printer.image(
+            img,
+            impl="bitImageRaster",
+            high_density_vertical=True,
+            high_density_horizontal=True,
+            center=line.get("center", False),
+            fragment_height=960,
+        )
+    except Exception as e:
+        raise RuntimeError(f"Image processing failed: {e}") from e
 
 
 def _render_text_preview(line: dict) -> list[str]:

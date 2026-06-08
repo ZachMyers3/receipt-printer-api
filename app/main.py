@@ -44,6 +44,9 @@ class LineObject(BaseModel):
     pos: str | None = None
     font_bc: str | None = None
     pin: int | None = None
+    # image-specific
+    dither: bool | None = None
+    keep_aspect: bool | None = None
 
 
 class PrintRequest(BaseModel):

@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -275,10 +275,10 @@ def test_lines_to_text_legacy_preview():
     lines = _legacy_to_lines("hello world", qr_data="https://example.com")
     preview = lines_to_text(lines)
 
-    assert "📋 PRINTED TASKS" in preview
+    # Legacy format now simplified: no header, no cut
     assert "hello world" in preview
     assert "[QR: https://example.com]" in preview
-    assert "[CUT]" in preview
+    assert "[CUT]" not in preview
 
 
 @patch("app.escpos_formatter.Network")
@@ -291,11 +291,11 @@ def test_format_and_print_success(mock_network_class):
     mock_network_class.assert_called_once_with("192.168.1.1", port=9100)
     mock_printer.set.assert_called()
     mock_printer.text.assert_called()
-    mock_printer.cut.assert_called_once()
+    # Legacy format no longer includes cut
+    mock_printer.cut.assert_not_called()
     mock_printer.close.assert_called_once()
 
     text_calls = [call[0][0] for call in mock_printer.text.call_args_list]
-    assert "📋 PRINTED TASKS\n" in text_calls
     assert "hello world\n" in text_calls
     assert lines > 0
 
@@ -321,3 +321,89 @@ def test_format_and_print_connection_error(mock_network_class):
 
     with pytest.raises(RuntimeError, match="printer connection failed"):
         format_and_print("test", host="host", port=9100)
+
+
+# Image support tests
+@patch("app.escpos_formatter.Image")
+@patch("app.escpos_formatter.base64.b64decode")
+@patch("app.escpos_formatter.urllib.request.urlopen")
+@patch("app.escpos_formatter.Network")
+def test_process_image_line_success(mock_network_class, mock_urlopen, mock_b64decode, mock_image_module, mock_printer):
+    # Prepare mock image
+    mock_img = MagicMock()
+    mock_img.size = (100, 50)
+    mock_img.convert.return_value = mock_img
+    mock_img.resize.return_value = mock_img
+    mock_image_module.open.return_value = mock_img
+
+    # Base64 data URL
+    b64_str = "data:image/png;base64,ABC"
+    mock_b64decode.return_value = b"fakebytes"
+
+    lines = [
+        {
+            "type": "image",
+            "data": b64_str,
+            "width": 200,
+            "height": 100,
+            "center": True,
+            "dither": False,
+            "keep_aspect": False,
+        }
+    ]
+
+    count = process_line_objects(lines, mock_printer)
+
+    mock_image_module.open.assert_called_once()
+    mock_img.convert.assert_called_once_with("1")
+    mock_img.resize.assert_called_once_with((200, 100), ANY)
+    mock_printer.image.assert_called_once_with(
+        mock_img,
+        impl="bitImageRaster",
+        high_density_vertical=True,
+        high_density_horizontal=True,
+        center=True,
+        fragment_height=960,
+    )
+    assert count == 1
+
+
+@patch("app.escpos_formatter.Image")
+@patch("app.escpos_formatter.base64.b64decode")
+@patch("app.escpos_formatter.Network")
+def test_process_image_line_aspect_ratio_resize(mock_network_class, mock_b64decode, mock_image_module, mock_printer):
+    # Original image 400x300
+    mock_img = MagicMock()
+    mock_img.size = (400, 300)
+    mock_img.convert.return_value = mock_img
+    mock_img.resize.return_value = mock_img
+    mock_image_module.open.return_value = mock_img
+
+    mock_b64decode.return_value = b"fakebytes"
+
+    lines = [{
+        "type": "image",
+        "data": "data:image/png;base64,ABC",
+        "width": 200,  # only width given, aspect preserved
+    }]
+
+    process_line_objects(lines, mock_printer)
+
+    # Expect height scaled proportionally: 200 * (300/400) = 150
+    mock_img.resize.assert_called_once_with((200, 150), ANY)
+
+
+@patch("app.escpos_formatter.Image")
+@patch("app.escpos_formatter.base64.b64decode")
+@patch("app.escpos_formatter.Network")
+def test_process_image_line_invalid_data_raises(mock_network_class, mock_b64decode, mock_image_module, mock_printer):
+    # Simulate missing data
+    lines = [{"type": "image", "data": ""}]
+
+    with pytest.raises(RuntimeError, match="Image data missing"):
+        process_line_objects(lines, mock_printer)
+
+    # Simulate unsupported format
+    lines = [{"type": "image", "data": "ftp://unsupported.com/img.png"}]
+    with pytest.raises(RuntimeError, match="Unsupported image data format"):
+        process_line_objects(lines, mock_printer)
