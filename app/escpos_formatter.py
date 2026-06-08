@@ -241,9 +241,8 @@ def _handle_image_line(line: dict, printer) -> None:
             img = Image.open(io.BytesIO(img_bytes))
         elif data.startswith("data:image/"):
             # Data URL: format "data:image/png;base64,...."
-            header, b64_data = data.split(",", 1)
-            if ";base64" in header:
-                b64_data = header.split(";base64,")[1] if "," in header else b64_data
+            # Extract base64 part after the first comma
+            _, b64_data = data.split(",", 1)
             img_bytes = base64.b64decode(b64_data)
             img = Image.open(io.BytesIO(img_bytes))
         else:
