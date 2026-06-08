@@ -18,14 +18,14 @@ def format_and_print(
     host: str,
     port: int,
     qr_data: str | None = None,
-    max_retries: int = 3,
+    max_retries: int = 10,
 ) -> int:
     """Format receipt content and send it to the printer. Returns lines printed."""
     lines = _legacy_to_lines(text, qr_data)
     return format_lines(lines, host, port, max_retries)
 
 
-def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 3) -> int:
+def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 10) -> int:
     """Connect to the printer and process structured line objects.
     Ensures printer profile has media width for alignment features.
     Retries on connection errors up to max_retries times with 0.5s pause.

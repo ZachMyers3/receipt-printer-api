@@ -74,7 +74,7 @@ def health() -> dict[str, str]:
 def print_receipt(request: PrintRequest) -> dict[str, str | int]:
     if request.lines:
         raw_lines = [_line_object_to_dict(line) for line in request.lines]
-        max_retries = request.max_retries if request.max_retries is not None else 3
+        max_retries = request.max_retries if request.max_retries is not None else 10
         try:
             count = format_lines(raw_lines, host=PRINTER_HOST, port=PRINTER_PORT, max_retries=max_retries)
         except RuntimeError as exc:
@@ -87,7 +87,7 @@ def print_receipt(request: PrintRequest) -> dict[str, str | int]:
         text = request.text.strip()
         if not text:
             raise HTTPException(status_code=400, detail="text must not be empty")
-        max_retries = request.max_retries if request.max_retries is not None else 3
+        max_retries = request.max_retries if request.max_retries is not None else 10
         try:
             count = format_and_print(
                 text=text,
