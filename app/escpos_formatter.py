@@ -1,3 +1,4 @@
+import time
 from escpos.printer import Network
 from escpos.exceptions import BarcodeCodeError
 
@@ -17,36 +18,55 @@ def format_and_print(
     host: str,
     port: int,
     qr_data: str | None = None,
+    max_retries: int = 3,
 ) -> int:
     """Format receipt content and send it to the printer. Returns lines printed."""
     lines = _legacy_to_lines(text, qr_data)
-    return format_lines(lines, host, port)
+    return format_lines(lines, host, port, max_retries)
 
 
-def format_lines(lines: list[dict], host: str, port: int) -> int:
+def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 3) -> int:
     """Connect to the printer and process structured line objects.
     Ensures printer profile has media width for alignment features.
+    Retries on connection errors up to max_retries times with 0.5s pause.
     """
-    try:
-        printer = Network(host, port=port)
-        # Ensure media width is set so center/right alignment works without warnings
+    last_exc = None
+    for attempt in range(max_retries):
+        printer = None
         try:
-            # Use the public 'profile' attribute; it's a dict like {'media': {'width': {'pixel': 384}}}
-            profile = getattr(printer, 'profile', None)
-            if isinstance(profile, dict):
-                media = profile.setdefault('media', {})
-                width = media.setdefault('width', {})
-                if not width.get('pixel'):
-                    width['pixel'] = 384
+            printer = Network(host, port=port)
+            # Ensure media width is set so center/right alignment works without warnings
+            try:
+                profile = getattr(printer, 'profile', None)
+                if isinstance(profile, dict):
+                    media = profile.setdefault('media', {})
+                    width = media.setdefault('width', {})
+                    if not width.get('pixel'):
+                        width['pixel'] = 384
+            except Exception:
+                pass
+            lines_printed = process_line_objects(lines, printer)
+            printer.close()
+            return lines_printed
+        except (ConnectionError, TimeoutError) as exc:
+            last_exc = exc
+            if printer is not None:
+                try:
+                    printer.close()
+                except Exception:
+                    pass
+            if attempt < max_retries - 1:
+                time.sleep(0.5)
+                continue
+            raise RuntimeError(f"printer connection failed after {max_retries} attempts: {exc}") from exc
         except Exception:
-            # Silently ignore any issues with profile manipulation
-            pass
-        lines_printed = process_line_objects(lines, printer)
-        printer.close()
-    except (ConnectionError, TimeoutError) as exc:
-        raise RuntimeError(f"printer connection failed: {exc}") from exc
-
-    return lines_printed
+            if printer is not None:
+                try:
+                    printer.close()
+                except Exception:
+                    pass
+            raise
+    raise RuntimeError(f"printer connection failed after {max_retries} attempts: {last_exc}")
 
 
 def process_line_objects(lines: list[dict], printer) -> int:
