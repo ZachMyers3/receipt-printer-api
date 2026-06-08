@@ -41,10 +41,18 @@ def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 10)
             printer = Network(host, port=port)
             # Ensure media width is set so center/right alignment works without warnings
             try:
-                # Use printer._profile directly for mutability
-                if not hasattr(printer, '_profile') or not isinstance(printer._profile, dict):
-                    printer._profile = {}
-                profile = printer._profile
+                # First try the public profile attribute if mutable
+                profile = getattr(printer, 'profile', None)
+                if not isinstance(profile, dict):
+                    # Fall back to _profile or create a new dict
+                    profile = getattr(printer, '_profile', None)
+                    if not isinstance(profile, dict):
+                        profile = {}
+                        try:
+                            printer._profile = profile
+                        except Exception:
+                            pass
+                # Mutate the profile dict in-place
                 media = profile.setdefault('media', {})
                 width = media.setdefault('width', {})
                 if not width.get('pixel'):
