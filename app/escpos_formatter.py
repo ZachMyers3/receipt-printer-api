@@ -86,14 +86,7 @@ def lines_to_text(lines: list[dict]) -> str:
 
 
 def _legacy_to_lines(text: str, qr_data: str | None = None) -> list[dict]:
-    lines: list[dict] = [
-        {
-            "type": "text",
-            "text": "PRINTED TASKS\n",
-            "align": "left",
-        },
-        {"type": "text", "text": "─" * RECEIPT_WIDTH + "\n", "align": "center"},
-    ]
+    lines: list[dict] = []
 
     for wrapped_line in _wrap_text(text, width=RECEIPT_WIDTH):
         lines.append({"type": "text", "text": wrapped_line + "\n", "align": "left"})
