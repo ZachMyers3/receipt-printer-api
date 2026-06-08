@@ -90,8 +90,7 @@ def _legacy_to_lines(text: str, qr_data: str | None = None) -> list[dict]:
         {
             "type": "text",
             "text": "PRINTED TASKS\n",
-            "align": "center",
-            "bold": True,
+            "align": "left",
         },
         {"type": "text", "text": "─" * RECEIPT_WIDTH + "\n", "align": "center"},
     ]
