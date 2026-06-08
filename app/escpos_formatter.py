@@ -86,16 +86,17 @@ def lines_to_text(lines: list[dict]) -> str:
 
 
 def _legacy_to_lines(text: str, qr_data: str | None = None) -> list[dict]:
+    """Wrap raw text into a structured list preserving user's newlines.
+    Each user line becomes a text object (left-aligned). We do NOT rewrap.
+    """
     lines: list[dict] = []
-
-    for wrapped_line in _wrap_text(text, width=RECEIPT_WIDTH):
-        lines.append({"type": "text", "text": wrapped_line + "\n", "align": "left"})
-
+    # Split on \n and keep empty lines as empty strings
+    for line in text.split("\n"):
+        # Ensure trailing newline for each text object (printer expects it)
+        lines.append({"type": "text", "text": (line if line.endswith("\n") else line + "\n"), "align": "left"})
     lines.append({"type": "feed", "count": 1})
-
     if qr_data:
         lines.append({"type": "qr", "data": qr_data})
-
     return lines
 
 
