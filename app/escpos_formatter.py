@@ -31,34 +31,21 @@ def format_and_print(
 
 def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 10) -> int:
     """Connect to the printer and process structured line objects.
-    Ensures printer profile has media width for alignment features.
     Retries on connection errors up to max_retries times with 0.5s pause.
     """
     last_exc = None
+    # Provide a minimal profile that sets media width for centering
+    printer_profile = {
+        'media': {
+            'width': {
+                'pixel': 384
+            }
+        }
+    }
     for attempt in range(max_retries):
         printer = None
         try:
-            printer = Network(host, port=port)
-            # Ensure media width is set so center/right alignment works without warnings
-            try:
-                # First try the public profile attribute if mutable
-                profile = getattr(printer, 'profile', None)
-                if not isinstance(profile, dict):
-                    # Fall back to _profile or create a new dict
-                    profile = getattr(printer, '_profile', None)
-                    if not isinstance(profile, dict):
-                        profile = {}
-                        try:
-                            printer._profile = profile
-                        except Exception:
-                            pass
-                # Mutate the profile dict in-place
-                media = profile.setdefault('media', {})
-                width = media.setdefault('width', {})
-                if not width.get('pixel'):
-                    width['pixel'] = 384
-            except Exception:
-                pass
+            printer = Network(host, port=port, profile=printer_profile)
             lines_printed = process_line_objects(lines, printer)
             printer.close()
             return lines_printed
