@@ -89,7 +89,7 @@ def _legacy_to_lines(text: str, qr_data: str | None = None) -> list[dict]:
     lines: list[dict] = [
         {
             "type": "text",
-            "text": "📋 PRINTED TASKS\n",
+            "text": "PRINTED TASKS\n",
             "align": "center",
             "bold": True,
         },
@@ -104,7 +104,6 @@ def _legacy_to_lines(text: str, qr_data: str | None = None) -> list[dict]:
     if qr_data:
         lines.append({"type": "qr", "data": qr_data})
 
-    lines.append({"type": "cut"})
     return lines
 
 
