@@ -31,12 +31,15 @@ def format_lines(lines: list[dict], host: str, port: int) -> int:
         printer = Network(host, port=port)
         # Ensure media width is set so center/right alignment works without warnings
         try:
-            profile = getattr(printer, '_profile', None)
-            if profile is not None and isinstance(profile, dict):
-                if not profile.get('media', {}).get('width', {}).get('pixel'):
-                    profile.setdefault('media', {})['width'] = {'pixel': 384}
+            # Use the public 'profile' attribute; it's a dict like {'media': {'width': {'pixel': 384}}}
+            profile = getattr(printer, 'profile', None)
+            if isinstance(profile, dict):
+                media = profile.setdefault('media', {})
+                width = media.setdefault('width', {})
+                if not width.get('pixel'):
+                    width['pixel'] = 384
         except Exception:
-            # If profile manipulation fails, continue - alignment may not be perfect
+            # Silently ignore any issues with profile manipulation
             pass
         lines_printed = process_line_objects(lines, printer)
         printer.close()
