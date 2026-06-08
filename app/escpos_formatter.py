@@ -34,18 +34,22 @@ def format_lines(lines: list[dict], host: str, port: int, max_retries: int = 10)
     Retries on connection errors up to max_retries times with 0.5s pause.
     """
     last_exc = None
-    # Provide a minimal profile that sets media width for centering
-    printer_profile = {
-        'media': {
-            'width': {
-                'pixel': 384
-            }
-        }
-    }
     for attempt in range(max_retries):
         printer = None
         try:
-            printer = Network(host, port=port, profile=printer_profile)
+            printer = Network(host, port=port)
+            # Ensure profile has media.width.pixels set to suppress centering warnings
+            try:
+                profile_obj = getattr(printer, 'profile', None)
+                if profile_obj is not None and hasattr(profile_obj, 'profile_data'):
+                    pd = profile_obj.profile_data
+                    if isinstance(pd, dict):
+                        media = pd.setdefault('media', {})
+                        width = media.setdefault('width', {})
+                        if width.get('pixels') in ("Unknown", None):
+                            width['pixels'] = 384
+            except Exception:
+                pass
             lines_printed = process_line_objects(lines, printer)
             printer.close()
             return lines_printed
