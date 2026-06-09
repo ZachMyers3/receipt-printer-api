@@ -6,7 +6,7 @@ import time
 from escpos.printer import Network
 from escpos.exceptions import BarcodeCodeError
 
-RECEIPT_WIDTH = 32
+RECEIPT_WIDTH = 48
 
 _QR_EC_LEVELS = {"L": 0, "M": 1, "Q": 2, "H": 3}
 _BARCODE_POS = {
@@ -151,6 +151,12 @@ def _legacy_to_lines(text: str, qr_data: str | None = None) -> list[dict]:
 
 
 def _handle_text_line(line: dict, printer) -> int:
+    # Ensure every text line ends with newline so the printer advances
+    text = line.get("text", "")
+    if not text.endswith("\n"):
+        text += "\n"
+    line["text"] = text
+
     set_kwargs: dict = {
         "align": line.get("align", "left"),
         "font": line.get("font", "a"),
