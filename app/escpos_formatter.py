@@ -130,7 +130,8 @@ def lines_to_text(lines: list[dict]) -> str:
         elif line_type == "image":
             w = line.get("width", "?")
             h = line.get("height", "?")
-            output.append(f"[IMAGE: {w}x{h}]")
+            impl = line.get("impl", "bitImageColumn")
+            output.append(f"[IMAGE: {w}x{h} impl={impl}]")
 
     return "\n".join(output)
 
@@ -305,14 +306,18 @@ def _handle_image_line(line: dict, printer) -> None:
             img = img.resize((new_w, new_h), Image.LANCZOS)
 
         # Print image
+        impl = line.get("impl", "bitImageColumn")
         printer.image(
             img,
-            impl="bitImageRaster",
+            impl=impl,
             high_density_vertical=True,
             high_density_horizontal=True,
             center=line.get("center", False),
             fragment_height=960,
         )
+        # After the image is printed, send init to reset printer state
+        # Prevents subsequent text from being interpreted as image data
+        printer._raw(b'\x1b\x40')  # ESC @ - Initialize printer
     except Exception as e:
         raise RuntimeError(f"Image processing failed: {e}") from e
 
